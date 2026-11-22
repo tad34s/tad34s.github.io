@@ -1,0 +1,298 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Projects - Your Name</title>
+    <link rel="icon" type="image/png" href="../../assets/favicon.png">
+    <style>
+        body { max-width: 700px; margin: auto; padding: 0 8px; background: #1c1c1e; color: #dcdcdc; }
+        a { color: #a8b4c4; }
+        a:visited { color: #9a9aaa; }
+        sup { line-height: 0; }
+        .footnotes { font-size: 0.85em; }
+    </style>
+</head>
+<body>
+
+    <nav>
+        <p>
+            <a href="../../index.html#about">About me</a> |
+            <a href="../../projects.html">Projects</a> |
+            <a href="../../assets/cv/Tadeas_Baca_CV.pdf">CV</a> / <a href="../../assets/cv/Tadeas_Baca_CV_cz.pdf">CV_cz</a>
+        </p>
+    </nav>
+    <hr>
+
+    <h1>tdm</h1>
+
+    <p>
+        tdm is a dotfile manager I developed after being unsatisfied with the
+        current solutions I found in the community. Since tdm does stuff differently than other dotfile managers (at least
+        to the best of my knowledge), I feel the need to do a short writeup of my reasoning behind these decisions. I am
+        currently using tdm as my dotfile manager, and I will continue to develop it to accommodate the needs of its users
+        (which is only me, so my needs :P).
+    </p>
+
+    <h2>what is a dotfile manager</h2>
+
+    <p><em>(skip this part if you already know what it is)</em></p>
+
+    <p>
+        If you have ever configured anything related to programming, you might have encountered configuration files -
+        basically text files where you write down the settings of the software you want to use. On UNIX-based systems, these
+        files often start with a dot, since that makes the file (or directory) hidden, and a user won't see it unless they
+        specifically enable its visibility.
+    </p>
+
+    <p>
+        We often care about our configurations and want to save them and distribute them to our other machines. This is
+        the role of a dotfile manager<sup><a href="#fn1" id="ref1">1</a></sup>.
+    </p>
+
+    <h2>how other dotfile managers do things</h2>
+
+    <p>
+        Ideally, we would like to put our dotfiles into a version control system, most likely git. However, the files we
+        care about are spread out across our system, and it is not feasible to turn our whole system into a git repository.
+    </p>
+
+    <p>
+        The way we normally get around this is by using symlinks<sup><a href="#fn2" id="ref2">2</a></sup>. A symlink is
+        basically a normal file whose content is a path pointing to a file (or a directory) in a different location,
+        something like a teleport. If a program expects a configuration file at <code>~/.config/fish/config.fish</code>,
+        we can create the actual file somewhere like <code>~/dotfiles/config.fish</code> and create a symlink at
+        <code>~/.config/fish/config.fish</code> pointing to <code>~/dotfiles/config.fish</code>. The program does not even
+        notice, and when you open it yourself, you will be editing the original file.
+    </p>
+
+    <p>
+        Thus we can turn <code>~/dotfiles/</code> into a repository where only our important configurations are stored.
+        This is the basic premise dotfile managers work on. Where dotfile managers help is in creating the symlinks for
+        you. That is their main purpose.
+    </p>
+
+    <h3>GNU stow</h3>
+
+    <p>
+        One such program is GNU stow. Stow follows the UNIX philosophy of doing only one thing well. It takes what could
+        be your dotfile directory and creates the symlinks for you. Stow basically looks at all the files in your dotfiles
+        directory and creates a symlink for each of them under the home directory. For a file path such as
+        <code>~/dotfiles/subdirectory/.zshrc</code>, it creates a symlink to it at <code>~/subdirectory/.zshrc</code>. This
+        means that when you set up a new machine, you can just download the <code>~/dotfiles</code> directory and run stow
+        to set up your configurations. Stow works great as a simple tool. However, it has its issues.
+    </p>
+
+    <p>
+        It is not very ergonomic - adding config files to your dotfiles requires manually moving them to the repository and
+        running stow again. It handles only files, although it can symlink a directory if all of the directory's children
+        would have been linked, so you cannot add a whole directory and expect it to work when you create a new file in it.
+        It also does not support having two versions of one dotfile inside the repository.
+    </p>
+
+    <p>
+        The last issue is the most important. It often happens that 90% of our setup on, for example, a notebook is the
+        same as on a desktop, but it is important to us to maintain both configurations where they differ (like status bar
+        settings, battery settings, etc.). Using the versioning system for this won't suffice, since this duplicates
+        all the rest of the dotfiles, requiring constant git merging to keep them up to date.
+    </p>
+
+    <h3>chezmoi</h3>
+
+    <p>
+        Chezmoi is a dotfile manager I tried to use for quite some time. It is a well maintained piece of software that
+        works great for some people, but for me it became pretty painful after a while. My main gripe with it is its
+        solution to the problem of different setups. Instead of always symlinking, chezmoi allows you to
+        define templates, where you leave spots for variables, for example, your cursor size, display resolution, etc. These variables are then set in the chezmoi configuration, which defines the values chezmoi should fill into those spots. The only problem is that it separates the configuration file from the file that is being maintained. This is because chezmoi
+        maintains the template, and when you run the command, it fills in the variables and copies the result to the target
+        location. Instead of a symlink, there is a whole new file, so when you edit this file, you are editing the copy, not
+        the template. This leads to some frustrating scenarios. Either your changes get lost, or, since the copy is not
+        part of version control, you simply forget about them, and your dotfiles become more and more disorganized.
+        Additionally, since the variables are put inside a separate file, a person cannot maintain that file with git, or at least not in
+        different versions, since that would put us in the exact same problem as before.
+    </p>
+
+    <h2>how tdm works</h2>
+
+    <p>When I decided to start working on tdm, I wanted it to bring two main things:</p>
+
+    <ol>
+        <li>Adding whole directories to your dotfiles, automatically adopting their new children</li>
+        <li>Fixing the problem of two versions of one file, while keeping all the necessary declarations inside the versioning system</li>
+    </ol>
+
+    <p>
+        The solution to problem 1 is relatively simple. When you add something to your dotfile repository using tdm, tdm
+        checks whether it is a directory or a file. If it is a directory, tdm simply writes it down to remember it for
+        later. Then, whenever you run a command that moves or updates dotfiles, it checks for new children in the
+        directories it remembers, and if it finds any, it automatically adds them.
+    </p>
+
+    <p>The second problem is much more interesting.</p>
+
+    <h3>Fixing the two version problem</h3>
+
+    <p>
+        For a while, I wanted to make templates work by adding some method that would autonomously look at updates made to
+        the rendered copy and bring them back to the maintained template. I then dropped the idea, since I never came up
+        with anything I would be happy with. I decided on something else. I used forks.
+    </p>
+
+    <p>
+        First, in tdm you set up profiles. Think of them as different git branches, for example. Typically, you would have
+        a profile for your desktop, a profile for your work laptop, a profile for your personal laptop, etc. When you
+        create a new profile, tdm first assumes that everything should be the same as in the default profile. However, you
+        can then decide to fork a file/directory managed by tdm. When you fork it, tdm creates a new copy of the file in the
+        dotfile repo and changes the symlink to point to this new copy. Effectively, each profile is a list of different
+        versions for a subset of the managed files/directories. What I did here is move from the per-line granularity
+        enabled by templates to per-file granularity. This is the cost. However, it enables much better ergonomics, since
+        all of the different versions of the file are now in version control, and when making changes to a file you know
+        exactly where you are making them.
+    </p>
+
+    <p>
+        Here is an example. Say we have a waybar config at <code>~/.config/waybar/config.jsonc</code> and we add it to
+        tdm. The file is moved to the repo and a symlink is left in its place:
+    </p>
+
+<pre>
+$ tdm add ~/.config/waybar/config.jsonc
+
+~
+├── .config
+│   └── waybar
+│       └── config.jsonc -&gt; ~/dotfiles/files/.config/waybar/config.jsonc
+└── dotfiles
+    ├── config.toml
+    ├── files
+    │   └── .config
+    │       └── waybar
+    │           └── config.jsonc
+    └── forks
+</pre>
+
+    <p>
+        On the notebook, we switch to the notebook profile and fork the file. tdm copies it into
+        <code>forks/notebook/</code>, and the symlink now points to the copy, which we can edit freely:
+    </p>
+
+<pre>
+$ tdm use notebook
+$ tdm fork ~/.config/waybar/config.jsonc
+
+~
+├── .config
+│   └── waybar
+│       └── config.jsonc -&gt; ~/dotfiles/forks/notebook/.config/waybar/config.jsonc
+└── dotfiles
+    ├── config.toml
+    ├── files
+    │   └── .config
+    │       └── waybar
+    │           └── config.jsonc
+    └── forks
+        └── notebook
+            └── .config
+                └── waybar
+                    └── config.jsonc
+</pre>
+
+    <p>
+        The desktop profile has no fork of the file, so after switching to it, the symlink points back to the original
+        version. Both versions stay in the repo:
+    </p>
+
+<pre>
+$ tdm use desktop
+
+~
+├── .config
+│   └── waybar
+│       └── config.jsonc -&gt; ~/dotfiles/files/.config/waybar/config.jsonc
+└── dotfiles
+    ├── config.toml
+    ├── files
+    │   └── .config
+    │       └── waybar
+    │           └── config.jsonc
+    └── forks
+        └── notebook
+            └── .config
+                └── waybar
+                    └── config.jsonc
+</pre>
+
+    <p>
+        I later realized that this setup does not rule out templates and could in fact empower them. While I am still
+        thinking about implementing this, theoretically a template could simply generate each of the forked versions of
+        the file. Updates to the forks would be kept, and the user would have to update the actual template only when they
+        feel like it.
+    </p>
+
+    <p>
+        There are more quality of life features I have added to tdm. Overall, however, the two additions above have
+        been absolutely amazing for me and have enabled an extremely smooth experience where I do not think much about my
+        dotfile management other than remembering to commit my changes to git. I think this is a step in the right
+        direction when it comes to dotfile managers.
+    </p>
+
+
+    <h2>quality of life with tdm</h2>
+
+    <p>
+        That was the main idea that got me working on tdm. In this section I will list quality of life things that I added to improve my personal experience with the software, in no particular order:
+    </p>
+
+    <ol>
+        <li>You can clone a dotfile repository and deploy<sup><a href="#fn3" id="ref3">3</a></sup> it in one command.</li>
+        <li>
+            When the user deploys and already has a file where tdm wants to put a symlink, tdm moves the file to its stash.
+            When tdm ejects, it puts the original files back.
+            <ul>
+                <li>This allows the user to try someone else's dotfiles and then go back to their own without an issue.</li>
+            </ul>
+        </li>
+        <li>
+            All the information necessary for deploying a repo is inside the repo. There is no need to create additional
+            files with variables. Furthermore, this means that the differences are maintained in the repo.
+        </li>
+        <li>You can quickly switch between setups with only one command.</li>
+        <li>
+            <code>tdm git</code> - anything after this will be run as a git command inside the currently deployed dotfiles
+            repo.
+            <ul>
+                <li>
+                    For example, in any directory you can run
+                    <code>tdm git commit -m "committing changes to my dotfiles"</code> and it will commit the changes in
+                    the dotfiles repository.
+                </li>
+            </ul>
+        </li>
+        <li><code>tdm tree</code> - to visualize all the symlinks tdm is making.</li>
+        <li>
+            include/exclude/include only/ignore per profile - per profile, the user can declare:
+            <ul>
+                <li>exclude - which files not to symlink</li>
+                <li>include - an override of exclude</li>
+                <li>include only - self-explanatory</li>
+                <li>ignore - which files to just ignore</li>
+            </ul>
+            This is useful, for example, on my work laptop, where I want to symlink only the nvim configuration from my dotfiles.
+        </li>
+        <li>
+            Kicking out files - when, for example, an ignored file is seen inside the dotfiles repo, tdm will notice and put
+            it back.<sup><a href="#fn4" id="ref4">4</a></sup>
+        </li>
+    </ol>
+
+    <hr>
+    <section class="footnotes">
+    <p id="fn1"><sup>1</sup> In this text I will only be talking about dotfile managers for UNIX-based systems. While tdm could be used to version control any files, my main target is the UNIX dotfile context. <a href="#ref1">back</a></p>
+    <p id="fn2"><sup>2</sup> Also called symbolic links or soft links. <a href="#ref2">back</a></p>
+    <p id="fn3"><sup>3</sup> Meaning symlinking the configurations to the dotfile repository. <a href="#ref3">back</a></p>
+    <p id="fn4"><sup>4</sup> This can happen when an ignored file is created inside a symlinked directory. Of course, the directory will then have to be desymlinked and its children will have to be symlinked one by one instead. <a href="#ref4">back</a></p>
+    </section>
+
+</body>
+</html>
