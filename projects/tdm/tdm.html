@@ -247,7 +247,7 @@ $ tdm use desktop
     <ol>
         <li>You can clone a dotfile repository and deploy<sup><a href="#fn3" id="ref3">3</a></sup> it in one command.</li>
         <li>
-            When the user deploys and already has a file where tdm wants to put a symlink, tdm moves the file to its stash.
+            When the user deploys a repo and already has a file where tdm wants to put a symlink, tdm moves the file to its stash.
             When tdm ejects, it puts the original files back.
             <ul>
                 <li>This allows the user to try someone else's dotfiles and then go back to their own without an issue.</li>
@@ -271,7 +271,7 @@ $ tdm use desktop
         </li>
         <li><code>tdm tree</code> - to visualize all the symlinks tdm is making.</li>
         <li>
-            include/exclude/include only/ignore per profile - per profile, the user can declare:
+            include/exclude/include only/ignore - per profile, the user can declare:
             <ul>
                 <li>exclude - which files not to symlink</li>
                 <li>include - an override of exclude</li>
